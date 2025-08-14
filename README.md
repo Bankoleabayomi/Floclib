@@ -208,17 +208,7 @@ python -m floclab.cli \
   --pso-iters 100 \
   --out run_results.json
 ```
----
 
-```bash
-python -m floclab.cli \
-  -i examples/P2_gf_50_120.csv \
-  --Gf 50 \
-  --method delta \
-  --min-size 0.02 --max-size 2.375 --interval 0.10 \
-  --loss huber --pso-grid --pso-iters 100 \
-  --out run_results.json
-```
 
 **Key CLI options:**
 - `-i, --input` : feature file path (csv/parquet/npy)
@@ -244,20 +234,39 @@ Outputs: JSON summary and companion Parquet files: `<out>_beta.parquet`, `<out>_
 
 ## Notes & recommendations
 
-- **Units consistency:** ensure particle-size units and bin edges use the same unit (mm or µm). Unit changes alter fitted slopes.
+- **Units consistency:** ensure particle-size units and bin edges use the same unit (mm or µm). Unit changes and bin size/intervals alter fitted slopes.
 - **ASD method selection:** use `delta` to reproduce legacy behaviour; `density` is the standard alternative.
-- **PSO performance:** grid search improves robustness but increases runtime. Adjust `pso_iters` and swarm sizes for faster iteration during development.
+- **PSO performance:** grid search improves robustness but increases runtime. Adjust `pso_iters` and swarm sizes for faster iteration during heavy simulation.
 - **Reproducibility:** PSO is stochastic. Add a seed option (if deterministic results are required) before large-scale production runs.
-- **Error handling:** input validation checks for required columns; ensure `Folder` groups map cleanly to numeric Tf values or preprocess accordingly.
+- **Error handling:** input validation checks for required columns; ensure `Folder` is declared for corresponding column for Tf accordingly.
 
 ---
 
 ## Contributing & license
 
-Contributions are welcome. Include tests for algorithmic changes. Choose an open-source license (e.g., MIT) for broad use.
+Contributions are welcome. Include tests for algorithmic changes.
+License: MIT 2025.
 
 ---
-
+## Citation
+```bash
+@article{bankole_novel_2025,
+	title = {A novel open-source framework for automatic flocculation kinetics and retention time modelling using image analysis and swarm intelligence},
+	volume = {74},
+	rights = {All rights reserved},
+	issn = {2214-7144},
+	url = {https://www.sciencedirect.com/science/article/pii/S2214714425009432},
+	doi = {10.1016/j.jwpe.2025.107871},
+	pages = {107871},
+	journaltitle = {Journal of Water Process Engineering},
+	author = {Bankole, Abayomi O. and Moruzzi, Rodrigo and Negri, Rogério G. and Campos, Luiza C.},
+	urldate = {2025-05-05},
+	date = {2025-05-01},
+}
+```
+---
 ## Contact
 
 For questions, issues, or feature requests, open an issue in the project repository with a reproducible example and expected vs. actual behavior.
+
+
