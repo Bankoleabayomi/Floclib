@@ -188,6 +188,27 @@ simulate_retention_times(
 ## CLI usage (example)
 
 Run end-to-end feature → Beta → fit → simulate:
+(Activate the environment first before the following).
+(Windows, macOS, Linux)
+```bash
+python -m floclab.cli -i examples/P1_gf_18_120.csv --Gf 18 --method delta --min-size 0.02 --max-size 2.375 --interval 0.10 --loss huber --pso-grid --pso-iters 100 --out run_results.json
+```
+---
+Optional (Multi-line — Linux / macOS; bash, zsh)
+```bash
+python -m floclab.cli \
+  -i examples/P1_gf_18_120.csv \
+  --Gf 18 \
+  --method delta \
+  --min-size 0.02 \
+  --max-size 2.375 \
+  --interval 0.10 \
+  --loss huber \
+  --pso-grid \
+  --pso-iters 100 \
+  --out run_results.json
+```
+---
 
 ```bash
 python -m floclab.cli \
