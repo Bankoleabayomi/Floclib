@@ -11,7 +11,7 @@ It computes Aggregate Size Distribution (ASD) to derive the Power Law Slope (Bet
 - **Two ASD methods:** legacy `delta` (dN = previous − current) and standard `density` (counts / bin_width).
 - **Robust fitting:** PSO global search (configurable grid) with optional Huber loss, followed by Levenberg–Marquardt refinement (`scipy.curve_fit`).
 - **Retention time solvers:** Newton–Raphson and Secant method for multi-compartment CSTR arrays.
-- **Feature-first workflow:** accepts CSV / Parquet / NumPy feature tables — image segmentation is upstream/optional.
+- **Feature-first workflow:** accepts CSV / Parquet / NumPy feature tables from an upstream floc image segmentation (version including direct image segmentation will be released soon).
 - **CLI + Python API:** scriptable and interactive usage.
 
 ---
