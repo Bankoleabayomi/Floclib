@@ -121,7 +121,7 @@ compute_beta_from_features(
 
 ### `fit_ka_kb(...)`
 
-Fit Ka and Kb using PSO + refinement.
+Fit Ka and Kb using PSO + NLS.
 
 **Signature (key args):**
 ```py
@@ -150,7 +150,6 @@ fit_ka_kb(
 **Tuning tips:**
 - `run_grid_search=True` gives more robust PSO starting guesses (slower).
 - `loss_for_pso="huber"` is robust to outliers; `huber_delta` controls sensitivity.
-- PSO is stochastic — consider controlled seeding for repeatability if needed.
 
 ---
 
@@ -172,8 +171,8 @@ simulate_retention_times(
 ```
 
 **Behavior:**
-- Repeats the provided scalars to build arrays for `m` identical compartments.
-- Uses Newton–Raphson and Secant methods to find T solving the reactor product equation.
+- Repeats the provided scalars to build arrays for `m` identical compartments against the reciprocal of efficiency (R).
+- Uses Secant and Newton–Raphson methods to find THRT, solving the reactor product equation.
 - Returns DataFrame with `Date`, `R`, `m`, `Gf`, `Ka`, `Kb`, `Newton_T`, `Newton_T_min`, `Secant_T`, `Secant_T_min`.
 
 ---
