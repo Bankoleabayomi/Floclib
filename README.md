@@ -16,7 +16,8 @@ It computes Aggregate Size Distribution (ASD) to derive the Power Law Slope (Bet
 
 ---
 
-## Installation (brief)
+## Installation
+#Note: Do not pip install into base/system Python. It is advisable to create a virtual environment using either "conda env create -f environment.yml" or "python -m venv .venv" before installing floclab. 
 
 Install runtime dependencies (Linux / macOS):
 
@@ -38,7 +39,7 @@ pip install floclab
 ```
 ---
 
-Using Conda (recommended)
+Using Conda (recommended; Binary-safe)
 Linux / macOS / Windows (Anaconda/Miniconda)
 ```bash
 # from repo root (where environment.yml is)
@@ -50,7 +51,7 @@ pip install floclab
 ```
 ---
 
-Quick verification (after install)
+Quick verification (after installation)
 Run these to confirm core imports and CLI show help:
 ```bash
 # basic import checks
@@ -61,6 +62,7 @@ python -m floclab.cli --help
 ```
 If these succeed, the install is good.
 
+---
 
 ## Input data format
 
