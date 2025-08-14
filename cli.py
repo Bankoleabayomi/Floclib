@@ -10,6 +10,7 @@ import argparse
 import sys
 import os
 import pandas as pd
+import numpy as np
 from .io import load_features, validate_features, build_beta, save_results
 from .asd import compute_beta
 from .fit import fit_ka_kb
@@ -27,10 +28,9 @@ def parse_bins_arg(bins_str: str):
         parts = [float(p) for p in bins_str.split(",")]
         return parts
 
-import numpy as np
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="FlocLib CLI - feature->Beta->Ka/Kb->CSTR")
+    parser = argparse.ArgumentParser(description="Floclib CLI - feature->Beta->Ka/Kb->CSTR")
     parser.add_argument("-i", "--input", required=True, help="Feature file (csv/parquet/npy)")
     parser.add_argument("--Gf", type=float, required=True, help="Shear velocity Gf (scalar)")
     parser.add_argument("--out", default="floclib_results.json", help="Output results file (json recommended)")

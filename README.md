@@ -1,8 +1,8 @@
 
-# Floclab
+# Floclib
 
-FlocLab — a lightweight, Python toolkit for analyzing flocculation image feature data.  
-It computes Aggregate Size Distribution (ASD) to derive the Power Law Slope (Beta), fits aggregation/breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) + NLS, and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiency and Completely Stirred Tank Reactor (CSTR) in series - Chambers-in-Series. Floclab is designed for reproducible, offline use with feature tables exported from segmentation tools.
+Floclib — a lightweight, Python toolkit for analyzing flocculation image feature data.  
+It computes flocculation kinetics from Aggregate Size Distribution (ASD) to derive the Power Law Slope (Beta), fits aggregation/breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) + NLS, and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiency and Completely Stirred Tank Reactors (CSTR) in series - Chambers-in-Series. Floclib is designed for reproducible, offline use with feature tables exported from segmentation tools.
 
 ---
 
@@ -10,14 +10,14 @@ It computes Aggregate Size Distribution (ASD) to derive the Power Law Slope (Bet
 
 - **Two ASD methods:** legacy `delta` (dN = previous − current) and standard `density` (counts / bin_width).
 - **Robust fitting:** PSO global search (configurable grid) with optional Huber loss, followed by Levenberg–Marquardt refinement (`scipy.curve_fit`).
-- **Retention time solvers:** Newton–Raphson and Secant method for multi-compartment CSTR arrays.
+- **Retention time solvers:** Secant and Newton–Raphson methods for simulating THRT for multi-compartment CSTR system.
 - **Feature-first workflow:** accepts CSV / Parquet / NumPy feature tables from an upstream floc image segmentation (version including direct image segmentation will be released soon).
 - **CLI + Python API:** scriptable and interactive usage.
 
 ---
 
 ## Installation
-#Note: Do not pip install into base/system Python. It is advisable to create a virtual environment using either "conda env create -f environment.yml" or "python -m venv .venv" before installing floclab. 
+#Note: Do not pip install into base/system Python. It is advisable to create a virtual environment using either "conda env create -f environment.yml" or "python -m venv .venv" before installing floclib. 
 
 Install runtime dependencies (Linux / macOS):
 
@@ -26,7 +26,7 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 pip install -r requirements_ranges.txt
-pip install floclab
+pip install floclib
 
 ```
 Windows (PowerShell)
@@ -35,7 +35,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip setuptools wheel
 pip install -r requirements_ranges.txt
-pip install floclab
+pip install floclib
 ```
 ---
 
@@ -44,10 +44,10 @@ Linux / macOS / Windows (Anaconda/Miniconda)
 ```bash
 # from repo root (where environment.yml is)
 conda env create -f environment.yml
-conda activate floclab
+conda activate floclib
 
 # install your package in editable mode (dev)
-pip install floclab
+pip install floclib
 ```
 ---
 
@@ -55,10 +55,10 @@ Quick verification (after installation)
 Run these to confirm core imports and CLI show help:
 ```bash
 # basic import checks
-python -c "import sys; from floclab.asd import compute_beta_from_features; print('ASD OK'); from floclab.fit import fit_ka_kb; print('FIT OK')"
+python -c "import sys; from floclib.asd import compute_beta; print('ASD OK'); from floclib.fit import fit_ka_kb; print('FIT OK')"
 
 # CLI help
-python -m floclab.cli --help
+python -m floclib.cli --help
 ```
 If these succeed, the install is good.
 
@@ -82,10 +82,10 @@ Supported filetypes: `.csv`, `.parquet`, `.feather`, `.npy`, `.npz`.
 Import:
 
 ```py
-from floclab.io import load_features, build_time_and_bobeta, save_results
-from floclab.asd import compute_beta_from_features
-from floclab.fit import fit_ka_kb
-from floclab.cstr import simulate_retention_times
+from floclib.io import load_features, build_beta, save_results
+from floclib.asd import compute_beta
+from floclib.fit import fit_ka_kb
+from floclib.cstr import simulate_retention_times
 ```
 
 ### `compute_beta_from_features(...)`
@@ -94,7 +94,7 @@ Calculate Beta per folder/group.
 
 **Signature (key args):**
 ```py
-compute_beta_from_features(
+compute_beta(
     features: pd.DataFrame,
     *,
     size_col: str = "longest_length",
@@ -180,7 +180,7 @@ simulate_retention_times(
 ## IO helpers
 
 - `load_features(path)` — loads CSV / Parquet / NumPy arrays into a DataFrame.
-- `build_time_and_bobeta(beta_df, tf_col="Tf", beta_col="Beta", time_multiplier=60)` — constructs `Tf_arr` and `Bo_B_obs` used for fitting.
+- `build_beta(beta_df, tf_col="Tf", beta_col="Beta", time_multiplier=60)` — constructs `Tf_arr` and `Bo_B_obs` used for fitting.
 - `save_results(obj, out_path)` — saves DataFrame/dict to JSON / CSV / Parquet as appropriate.
 
 ---
@@ -191,13 +191,13 @@ Run end-to-end feature → Beta → fit → simulate:
 (Activate the environment first before the following).
 (Windows, macOS, Linux)
 ```bash
-python -m floclab.cli -i examples/P1_gf_18_120.csv --Gf 18 --method delta --min-size 0.02 --max-size 2.375 --interval 0.10 --loss huber --pso-grid --pso-iters 100 --out run_results.json
+python -m floclib.cli -i examples/testing.csv --Gf 18 --method delta --min-size 0.02 --max-size 2.375 --interval 0.10 --loss huber --pso-grid --pso-iters 100 --out run_results.json
 ```
 ---
 Optional (Multi-line — Linux / macOS; bash, zsh)
 ```bash
-python -m floclab.cli \
-  -i examples/P1_gf_18_120.csv \
+python -m floclib.cli \
+  -i examples/testing.csv \
   --Gf 18 \
   --method delta \
   --min-size 0.02 \
@@ -269,5 +269,3 @@ Copyright (c) 2025 Bankoleabayomi.
 ## Contact
 
 For questions, issues, or feature requests, open an issue in the project repository with a reproducible example and expected vs. actual behavior.
-
-
