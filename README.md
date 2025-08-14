@@ -47,8 +47,20 @@ conda activate floclab
 
 # install your package in editable mode (dev)
 pip install floclab
-
+```
 ---
+
+Quick verification (after install)
+Run these to confirm core imports and CLI show help:
+```bash
+# basic import checks
+python -c "import sys; from floclab.asd import compute_beta_from_features; print('ASD OK'); from floclab.fit import fit_ka_kb; print('FIT OK')"
+
+# CLI help
+python -m floclab.cli --help
+```
+If these succeed, the install is good.
+
 
 ## Input data format
 
