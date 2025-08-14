@@ -18,14 +18,35 @@ It computes Aggregate Size Distribution (ASD) to derive the Power Law Slope (Bet
 
 ## Installation (brief)
 
-Install runtime dependencies (example):
+Install runtime dependencies (Linux / macOS):
 
 ```bash
-pip install numpy pandas scipy scikit-image opencv-python-headless matplotlib pyswarms
-pip install -e .
-```
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements_ranges.txt
+pip install floclab
 
-Conda alternatives are recommended for binary-heavy environments.
+```
+Windows (PowerShell)
+```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements_ranges.txt
+pip install floclab
+```
+---
+
+Using Conda (recommended)
+Linux / macOS / Windows (Anaconda/Miniconda)
+```bash
+# from repo root (where environment.yml is)
+conda env create -f environment.yml
+conda activate floclab
+
+# install your package in editable mode (dev)
+pip install floclab
 
 ---
 
