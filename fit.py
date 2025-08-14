@@ -5,7 +5,7 @@ Created on Wed Aug 13 13:13:38 2025
 @author: banko
 """
 
-# floclab/fit.py
+# floclib/fit.py
 import numpy as np
 import warnings
 from typing import Tuple, Dict, Any, Optional

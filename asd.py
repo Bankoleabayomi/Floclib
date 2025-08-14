@@ -6,13 +6,13 @@ Created on Wed Aug 13 13:13:18 2025
 """
 
 
-# floclab/asd.py
+# floclib/asd.py
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 from typing import Optional, Sequence, Union, Dict, Any
 
-def compute_beta_from_features(
+def compute_beta(
     features: pd.DataFrame,
     *,
     size_col: str = "longest_length",
@@ -136,12 +136,11 @@ def compute_beta_from_features(
 
 
 #---------Density only Method--------------
-# # floclab/asd.py
 # import numpy as np
 # import pandas as pd
 # from sklearn.linear_model import LinearRegression
 
-# def compute_beta_from_features(
+# def compute_beta(
 #     features: pd.DataFrame,
 #     size_col: str = "longest_length",
 #     folder_col: str = "Folder",

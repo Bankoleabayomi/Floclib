@@ -5,7 +5,7 @@ Created on Wed Aug 13 17:03:22 2025
 @author: banko
 """
 
-# floclab/io.py
+# floclib/io.py
 import os
 import json
 from typing import Tuple, Optional, Sequence, Dict, Any
@@ -82,7 +82,7 @@ def validate_features(
     missing = [c for c in required_columns if c not in df.columns]
     return (len(missing) == 0, missing)
 
-def build_time_and_bobeta(
+def build_beta(
     beta_df: pd.DataFrame,
     tf_col: str = "Tf",
     beta_col: str = "Beta",

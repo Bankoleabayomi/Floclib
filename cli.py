@@ -5,13 +5,13 @@ Created on Wed Aug 13 13:48:12 2025
 @author: banko
 """
 
-# floclab/cli.py
+# floclib/cli.py
 import argparse
 import sys
 import os
 import pandas as pd
-from .io import load_features, validate_features, build_time_and_bobeta, save_results
-from .asd import compute_beta_from_features
+from .io import load_features, validate_features, build_beta, save_results
+from .asd import compute_beta
 from .fit import fit_ka_kb
 from .cstr import simulate_retention_times
 
@@ -30,10 +30,10 @@ def parse_bins_arg(bins_str: str):
 import numpy as np
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="FlocLab CLI - feature->Beta->Ka/Kb->CSTR")
+    parser = argparse.ArgumentParser(description="FlocLib CLI - feature->Beta->Ka/Kb->CSTR")
     parser.add_argument("-i", "--input", required=True, help="Feature file (csv/parquet/npy)")
     parser.add_argument("--Gf", type=float, required=True, help="Shear velocity Gf (scalar)")
-    parser.add_argument("--out", default="floclab_results.json", help="Output results file (json recommended)")
+    parser.add_argument("--out", default="floclib_results.json", help="Output results file (json recommended)")
     # ASD bin options (optional)
     parser.add_argument("--method", choices=["delta", "density"], default="delta",
                         help="ASD method: 'delta' (your original) or 'density' (counts/dp)")
@@ -74,7 +74,7 @@ def main(argv=None):
             bins = np.arange(args.min_size, args.max_size + args.interval, args.interval)
 
     # compute Beta (ASD)
-    beta_df = compute_beta_from_features(
+    beta_df = compute_beta(
         features,
         size_col="longest_length",
         folder_col="Folder",
@@ -92,7 +92,7 @@ def main(argv=None):
         sys.exit(1)
 
     # build Tf_arr and Bo_B_obs
-    Tf_arr, Bo_B_obs, beta_with_time = build_time_and_bobeta(beta_df, tf_col="Tf", beta_col="Beta", time_multiplier=60.0)
+    Tf_arr, Bo_B_obs, beta_with_time = build_beta(beta_df, tf_col="Tf", beta_col="Beta", time_multiplier=60.0)
 
     # Fit Ka and Kb
     res = fit_ka_kb(

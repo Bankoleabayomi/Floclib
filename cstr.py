@@ -5,7 +5,7 @@ Created on Wed Aug 13 13:14:02 2025
 @author: banko
 """
 
-# floclab/cstr.py
+# floclib/cstr.py
 import numpy as np
 import pandas as pd
 from typing import Sequence, Tuple, Optional
