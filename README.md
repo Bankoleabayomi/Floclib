@@ -238,14 +238,15 @@ Outputs: JSON summary and companion Parquet files: `<out>_beta.parquet`, `<out>_
 - **ASD method selection:** use `delta` to reproduce legacy behaviour; `density` is the standard alternative.
 - **PSO performance:** grid search improves robustness but increases runtime. Adjust `pso_iters` and swarm sizes for faster iteration during heavy simulation.
 - **Reproducibility:** PSO is stochastic. Add a seed option (if deterministic results are required) before large-scale production runs.
-- **Error handling:** input validation checks for required columns; ensure `Folder` is declared for corresponding column for Tf accordingly.
+- **Error handling:** input validation checks for required columns; ensure `Folder` is declared for the corresponding column for Tf accordingly.
 
 ---
 
 ## Contributing & license
 
 Contributions are welcome. Include tests for algorithmic changes.
-License: MIT 2025.
+License: MIT
+Copyright (c) 2025 Bankoleabayomi.
 
 ---
 ## Citation
