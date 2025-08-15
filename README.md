@@ -88,7 +88,7 @@ from floclib.fit import fit_ka_kb
 from floclib.cstr import simulate_retention_times
 ```
 
-### `compute_beta_from_features(...)`
+### `compute_beta`
 
 Calculate Beta per folder/group.
 
@@ -119,7 +119,7 @@ compute_beta(
 
 ---
 
-### `fit_ka_kb(...)`
+### `fit_ka_kb`
 
 Fit Ka and Kb using PSO + NLS.
 
