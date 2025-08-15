@@ -1,0 +1,2 @@
+[console_scripts]
+floclab = floclab.cli:main
