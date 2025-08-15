@@ -2,10 +2,10 @@ numpy>=1.24,<2.0
 pandas>=2.1,<2.2
 scipy>=1.10,<2.0
 scikit-image>=0.23,<0.24
-opencv-python-headless==4.6.0.66
-matplotlib>=3.6,<4.0
+opencv-python-headless>=4.6,<5.0
+matplotlib>=3.7,<=3.8
 pyswarms>=1.2,<2.0
-boto3>=1.26,<2.0
+boto3>=1.37,<1.40
 psutil>=5.9,<6.0
 gunicorn>=20.1,<24.0
 Flask>=3.0,<4.0

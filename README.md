@@ -1,7 +1,7 @@
 
 # Floclib
 
-Floclib — a lightweight, Python toolkit for analyzing flocculation image feature data.  
+Floclib is a Python toolkit for analyzing flocculation image feature data.  
 It computes flocculation kinetics from Aggregate Size Distribution (ASD) to derive the Power Law Slope (Beta), fits aggregation/breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) + NLS, and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiency and Completely Stirred Tank Reactors (CSTR) in series - Chambers-in-Series. Floclib is designed for reproducible, offline use with feature tables exported from segmentation tools.
 
 ---

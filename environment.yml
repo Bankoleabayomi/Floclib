@@ -8,11 +8,11 @@ dependencies:
   - pandas>=2.1,<2.2
   - scipy>=1.10,<2.0
   - scikit-image>=0.23,<0.24
-  - matplotlib>=3.6,<4.0
+  - matplotlib>=3.7,<=3.8
   - scikit-learn>=1.1,<=1.5
   - fastparquet>=2023,<=2024.11
   - psutil>=5.9,<6.0
-  - boto3>=1.26,<2.0
+  - boto3>=1.37,<1.40
   - gunicorn>=20.1,<24.0
   - flask>=3.0,<4.0
   - pip

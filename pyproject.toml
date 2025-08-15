@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "floclib"
-version = "0.1.0"
+version = "0.1.3"
 description = "Flocculation kinetic modelling and retention time simulation toolkit"
 authors = [
   { name = "Abayomi O. Bankole", email = "bankoleabayomi3@gmail.com" },
@@ -20,14 +20,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-        "numpy>=1.26,<2.0",
+        "numpy>=1.24,<2.0",
     "pandas>=2.1,<2.2",
     "scipy>=1.10,<2.0",
     "scikit-image>=0.23,<0.24",
     "opencv-python-headless>=4.6,<5.0",
-    "matplotlib>=3.7,<3.8",
+    "matplotlib>=3.7,<=3.8",
     "pyswarms>=1.3,<1.4",
-    "boto3>=1.37,<1.38",
+    "boto3>=1.37,<1.40",
     "psutil>=5.9,<6.0",
     "gunicorn>=23.0,<23.1",
     "flask>=3.1,<3.2",
