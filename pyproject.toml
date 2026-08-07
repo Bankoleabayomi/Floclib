@@ -60,7 +60,10 @@ dev = [
 floclib = "floclib.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["floclib*"]
+# Exact "floclib" plus its subpackages only. A bare "floclib*" glob would
+# also match the local `floclib_env` virtualenv directory and bundle the
+# whole venv (site-packages, activate scripts) into the wheel.
+include = ["floclib", "floclib.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

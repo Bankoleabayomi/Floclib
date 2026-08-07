@@ -49,6 +49,7 @@ env/
 venv/
 ENV/
 env.bak/
+floclib_env/
 
 # Spyder project settings
 .spyproject/
