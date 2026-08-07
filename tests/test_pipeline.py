@@ -56,8 +56,23 @@ def image_tree(tmp_path):
             d = root / cond / tf
             d.mkdir(parents=True)
             _write_circle_png(str(d / "img.png"), r_scale=scale,
-                              seed=(hash(cond + tf) % 1000))
+                              seed=_seed_for(cond, tf))
     return str(root)
+
+
+def _seed_for(cond, tf):
+    """Deterministic (PYTHONHASHSEED-independent) per-(condition, Tf) seed.
+
+    Python randomizes str hashing per process, so ``hash(...)`` would make the
+    synthetic images and therefore the Beta values and fits differ on every
+    run. On CI this caused test_fit_simulate_chain to intermittently raise
+    "Beta contains non-positive values". This fold is stable across runs and
+    platforms.
+    """
+    h = 0
+    for ch in f"{cond}/{tf}":
+        h = (h * 31 + ord(ch)) % 100000
+    return h
 
 
 def test_analyze_two_dataframes(image_tree):
