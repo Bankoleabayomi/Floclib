@@ -9,6 +9,10 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/Bankoleabayomi/Floclib/tests.yml?branch=main&label=tests)](https://github.com/Bankoleabayomi/Floclib/actions/workflows/tests.yml)
 [![GitHub issues](https://img.shields.io/github/issues/Bankoleabayomi/Floclib.svg)](https://github.com/Bankoleabayomi/Floclib/issues)
 [![GitHub stars](https://img.shields.io/github/stars/Bankoleabayomi/Floclib.svg)](https://github.com/Bankoleabayomi/Floclib)
+[![uv](https://img.shields.io/badge/uv-supported-2665DE?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![pip](https://img.shields.io/badge/pip-supported-3775A9?logo=pypi&logoColor=white)](https://pip.pypa.io/)
+[![conda](https://img.shields.io/badge/conda-supported-44A833?logo=anaconda&logoColor=white)](https://docs.conda.io/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://docs.astral.sh/ruff/)
 
 Floclib is a Python toolkit for analyzing flocculation kinetics from image and feature data. It derives the Power Law Slope (Beta) from the Aggregate Size Distribution (ASD), fits the aggregation and breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) combined with non-linear least squares (NLS), and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiencies across Completely Stirred Tank Reactors (CSTR) in series, also known as the Chambers-in-Series model.
 
