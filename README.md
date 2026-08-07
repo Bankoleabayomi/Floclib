@@ -1,66 +1,161 @@
 
 # Floclib
 
-Floclib is a Python toolkit for analyzing flocculation image feature data.  
-It computes flocculation kinetics from Aggregate Size Distribution (ASD) to derive the Power Law Slope (Beta), fits aggregation/breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) + NLS, and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiency and Completely Stirred Tank Reactors (CSTR) in series - Chambers-in-Series. Floclib is designed for reproducible, offline use with feature tables exported from segmentation tools.
+Floclib is a Python toolkit for analyzing flocculation kinetics from image and feature data. It derives the Power Law Slope (Beta) from the Aggregate Size Distribution (ASD), fits the aggregation and breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) combined with non-linear least squares (NLS), and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiencies across Completely Stirred Tank Reactors (CSTR) in series, also known as the Chambers-in-Series model.
+
+Floclib supports two complementary workflows:
+
+- **Image pipeline (new in 0.2.0):** raw floc images are segmented, measured, reduced to Beta, fit for Ka and Kb, and simulated through to THRT in roughly three lines of code. This workflow requires the optional `[seg]` extra (scikit-image, OpenCV, imageio).
+- **Tabular pipeline (original):** pre-computed feature tables in CSV, Parquet, or NumPy format are consumed directly and carried through the same Beta, fit, and simulate stages. This workflow needs only the lightweight core dependencies.
 
 ---
 
 ## Key features
 
-- **Two ASD methods:** legacy `delta` (dN = previous − current) and standard `density` (counts / bin_width).
-- **Robust fitting:** PSO global search (configurable grid) with optional Huber loss, followed by Levenberg–Marquardt refinement (`scipy.curve_fit`).
-- **Retention time solvers:** Secant and Newton–Raphson methods for simulating THRT for multi-compartment CSTR system.
-- **Feature-first workflow:** accepts CSV / Parquet / NumPy feature tables from an upstream floc image segmentation (version including direct image segmentation will be released soon).
-- **CLI + Python API:** scriptable and interactive usage.
+- **Image to THRT in three lines:** a composable segmentation stage (`Compose` together with `@register` ops) feeds the existing Beta, fit, and simulate chain, so no external segmentation step is required.
+- **Pluggable image operations:** seventeen curated preprocessing, segmentation, and post-processing operations (built on OpenCV and scikit-image) are shipped out of the box. The catalog is extended without limit through the `@register` decorator or a plain callable escape hatch for user-defined steps. The heavy image dependencies are an optional `[seg]` extra and are lazy-imported, so the tabular path remains light.
+- **Two ASD methods:** the legacy `delta` method (dN equals previous bin count minus current bin count) and the standard `density` method (counts divided by bin width).
+- **Robust and reproducible fitting:** Particle Swarm Optimization performs a global search over a configurable hyperparameter grid with an optional Huber loss, followed by Levenberg-Marquardt refinement through `scipy.curve_fit`. A `seed` parameter fixes the PSO initial particle positions so that repeated runs are reproducible. Fit quality is reported through RMSE, AIC, BIC, the Ka/Kb ratio, standard errors, and 95 percent confidence intervals.
+- **Retention time solvers:** Secant and Newton-Raphson methods simulate THRT for a multi-compartment CSTR system.
+- **CLI and Python API:** both a command-line interface and an interactive Python API are provided for scriptable and exploratory use.
+
+---
+
+## Image segmentation → THRT in 3 lines
+
+Organize your images as `root/Condition/Tf/images` (3 levels): one folder per experimental condition, each containing one folder per timestep (`Tf`), each containing the images captured at that time.
+
+```
+FlocsData/
+  Gf_30/            # condition (any unique ID: Gf_30, Impeller_C, pH_7, ...)
+    2/              # Tf (time folder; sorted numerically, so 2 precedes 10)
+      img000.tif
+      img001.tif
+    10/
+      img000.tif
+  Gf_60/
+    2/ ...
+    10/ ...
+```
+
+Then:
+
+```python
+from floclib import Pipeline
+from floclib.segment import Compose, MedianBlur, ThresholdOtsu, RemoveSmallObjects
+
+pipe = Pipeline.from_images("FlocsData", pixels_to_um=0.27,
+        segment=Compose([MedianBlur(ksize=3), ThresholdOtsu(), RemoveSmallObjects(min_size=50)]),
+        bins=(0.02, 2.375, 0.1), size_col="longest_length",
+        condition_pattern=r"Gf_(\d+)")   # parse Gf from each condition folder name
+particles_df, beta_df = pipe.analyze()         # two DataFrames
+fit = pipe.fit(condition="Gf_30", seed=42)     # Ka/Kb + RMSE/AIC/BIC/CIs
+thrt = pipe.simulate(R_values=[2, 3, 10], m=5) # THRT
+```
+
+- **`particles_df`:** one row per detected floc, with every linear measurement physically scaled by `pixels_to_um` and areas scaled by its square. Columns: `Gf, Condition, Tf, Image, Particle_num, area, equivalent_diameter_area, longest_length, axis_minor_length, perimeter, aspect_ratio, eccentricity`.
+- **`beta_df`:** one row per `(Condition, Tf)` pair, containing `Beta, Intercept, n_points, r2, Df` together with the per-group arithmetic mean and geometric mean of each floc property. Rows are sorted chronologically so that `Tf=2` always precedes `Tf=10`.
+
+### Gf metadata on conditions
+
+`Gf` (shear velocity) is metadata on each condition, resolved in this order:
+1. `gf` scalar → all conditions share that Gf;
+2. `gf` dict keyed by condition name → mapped per condition (missing conditions raise);
+3. `condition_pattern` regex (e.g. `r"Gf_(\d+)"`) → parsed from each condition folder name;
+4. undeclared → Gf is `NaN` until you pass `Gf=` to `pipe.fit()` (single-Gf datasets).
+
+### Compose and operations
+
+`Compose([...])` runs its operations in order and enforces monotonic kind ordering `preprocess`, then `segment`, then `post`. A `preprocess` operation placed after a `segment` operation raises a clear `TypeError`, which prevents silent type mismatches between grayscale images and integer label arrays. A bare `Op` instance or a plain Python callable is accepted anywhere a list is expected, which serves as the callable escape hatch for user-defined steps.
+
+| Op | Kind | Parameters | What it does |
+|----|------|------------|--------------|
+| `GaussianBlur` | preprocess | `ksize=5` | Gaussian blur (OpenCV) |
+| `MedianBlur` | preprocess | `ksize=5` | Median blur (OpenCV) |
+| `CLAHE` | preprocess | `clip_limit=2.0, tile_size=8` | Contrast-limited adaptive histogram equalization |
+| `BilateralFilter` | preprocess | `d=9, sigma_color=75, sigma_space=75` | Edge-preserving bilateral filter |
+| `Grayscale` | preprocess | none | Force single-channel (passthrough if already 2D) |
+| `MorphOpenGray` | preprocess | `kernel_size=3` | Grayscale morphological opening |
+| `MorphCloseGray` | preprocess | `kernel_size=3` | Grayscale morphological closing |
+| `ThresholdManual` | segment | `value=128, invert=False` | Fixed-threshold binarization plus 8-connectivity labelling |
+| `ThresholdOtsu` | segment | `invert=False` | Otsu auto-threshold plus labelling |
+| `ThresholdAdaptive` | segment | `block_size=15, C=5, invert=False` | Adaptive (local Gaussian) threshold plus labelling |
+| `ThresholdTriangle` | segment | `invert=False` | Triangle auto-threshold plus labelling |
+| `Watershed` | segment | `min_distance=20, peak_footprint=20` | Marker-controlled watershed from distance-transform peaks |
+| `RemoveSmallObjects` | post | `min_size=50` | Drop objects smaller than `min_size` pixels (skimage) |
+| `FillHoles` | post | none | Fill interior holes, then re-label |
+| `ClearBorder` | post | none | Remove objects touching the image border |
+| `MorphOpen` | post | `kernel_size=3` | Binary morphological opening, then re-label |
+| `MorphClose` | post | `kernel_size=3` | Binary morphological closing, then re-label |
+
+```python
+from floclib.segment import register, list_ops, get_op
+
+list_ops()                 # returns ['gaussian_blur', 'median_blur', ..., 'morph_close']
+get_op("threshold_otsu")   # returns an Op instance you can call on an image
+
+@register("my_denoise", kind="preprocess")        # register your own Op subclass
+class MyDenoise(Op): ...
+
+pipe = Pipeline.from_images(..., segment=lambda img: my_label_fn(img))  # callable escape hatch
+```
+
+> Image operations lazy-import `cv2`, `scikit-image`, and `scipy.ndimage` inside their `__call__` methods. As a result, `import floclib.segment` succeeds even when the `[seg]` extra is not installed, and the operation only raises a clear `ImportError` (with an install hint) at the moment it is actually invoked.
 
 ---
 
 ## Installation
-#Note: Do not pip install into base/system Python. It is advisable to create a virtual environment using either "conda env create -f environment.yml" or "python -m venv .venv" before installing floclib. 
 
-Install runtime dependencies (Linux / macOS):
+> Do not install into base/system Python. Create a virtual environment first.
 
+floclib has one optional extra:
+- `pip install floclib` installs the tabular pipeline only (numpy, pandas, scipy, scikit-learn, pyswarms, matplotlib). This is the lightweight core.
+- `pip install floclib[seg]` additionally installs the image-segmentation dependencies (scikit-image, opencv-python-headless, imageio). This is required for `Pipeline.from_images(...)`.
+
+### uv (recommended)
+
+```bash
+uv venv --python 3.12 floclib_env
+# Linux/macOS:  source floclib_env/bin/activate
+# Windows:      floclib_env\Scripts\activate
+uv pip install -e ".[seg,yaml]"      # dev install with image + YAML config extras
+```
+
+### pip
+
+Linux / macOS:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
-pip install -r requirements_ranges.txt
-pip install floclib
-
+pip install floclib[seg]
 ```
-Windows (PowerShell)
+Windows (PowerShell):
 ```bash
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip setuptools wheel
-pip install -r requirements_ranges.txt
-pip install floclib
+pip install floclib[seg]
 ```
----
 
-Using Conda (recommended; Binary-safe)
-Linux / macOS / Windows (Anaconda/Miniconda)
+### Conda (binary-safe fallback)
+
 ```bash
-# from repo root (where environment.yml is)
 conda env create -f environment.yml
 conda activate floclib
-
-# install your package in editable mode (dev)
-pip install floclib
+pip install -e ".[seg]"
 ```
----
 
-Quick verification (after installation)
-Run these to confirm core imports and CLI show help:
+### Quick verification
+
 ```bash
-# basic import checks
-python -c "import sys; from floclib.asd import compute_beta; print('ASD OK'); from floclib.fit import fit_ka_kb; print('FIT OK')"
-
+# tabular path imports (no [seg] deps required)
+python -c "from floclib.asd import compute_beta; from floclib.fit import fit_ka_kb; print('OK')"
+# image path imports (requires [seg])
+python -c "from floclib import Pipeline; from floclib.segment import Compose, ThresholdOtsu; print('seg OK')"
 # CLI help
 python -m floclib.cli --help
 ```
-If these succeed, the install is good.
 
 ---
 
@@ -68,8 +163,8 @@ If these succeed, the install is good.
 
 Minimum required columns in feature table (rows = detected particles):
 
-- `Folder` — grouping key (one folder per G or Tf).
-- `longest_length` — particle size measure (units must be consistent across the dataset).
+- `Folder`: grouping key (one folder per G or Tf).
+- `longest_length`: particle size measure (units must be consistent across the dataset).
 
 Optional useful columns: `Particle_num`, `Area_px`, `Equivalent_diameter_px`, `Perimeter_px`, `Major_axis_length_px`, `Minor_axis_length_px`, `Threshold_val`, `Timestamp`.
 
@@ -131,7 +226,7 @@ fit_ka_kb(
     Gf: float,
     *,
     lb: Tuple[float,float] = (1e-13, 1e-13),
-    ub: Tuple[float,float] = (1e-3, 1e-3),
+    ub: Tuple[float,float] = (1e-3,  1e-3),
     param_grid: Optional[dict] = None,
     pso_iters: int = 100,
     loss_for_pso: str = "huber",   # "huber" or "mse"
@@ -139,13 +234,23 @@ fit_ka_kb(
     run_grid_search: bool = True,
     verbose: bool = False,
     plot: bool = True,
-    plot_title: Optional[str] = None
+    plot_title: Optional[str] = None,
+    seed: Optional[int] = None,    # reproducible PSO initial positions
 ) -> Dict[str, Any]
 ```
 
 **Behavior:**
 - Default replicates the legacy workflow: PSO hyperparameter grid (w, c1, c2, swarm sizes) + Huber loss → select best PSO result → `curve_fit` refine.
-- Returns `Ka_pso_init`, `Kb_pso_init`, `pso_best_score`, `pso_best_opts`, `Ka_fit`, `Kb_fit`, `Bo_B_fit`, `pcov`.
+- `seed` (new) fixes PSO initial particle positions via `np.random.default_rng(seed)`; two runs with the same `seed` yield identical `Ka_fit`/`Kb_fit`. `seed=None` keeps the original stochastic behaviour.
+- Returns `Ka_pso_init`, `Kb_pso_init`, `pso_best_score`, `pso_best_opts`, `Ka_fit`, `Kb_fit`, `Bo_B_fit`, `pcov`, plus the fit-quality metrics below.
+
+**Fit-quality metrics (returned keys):**
+- `RMSE`, `MSE`: root-mean-square and mean-square error of the fit.
+- `AIC`, `BIC`: Akaike and Bayesian information criteria (`n·log(MSE) + 2k` and `n·log(MSE) + k·log(n)`, with `k=2`).
+- `Ka/Kb`: fitted ratio.
+- `Ka_se`, `Kb_se`: standard errors derived from the `curve_fit` covariance.
+- `Ka_CI_low`, `Ka_CI_high`, `Kb_CI_low`, `Kb_CI_high`: 95 percent confidence intervals (plus or minus 1.96 times the standard error).
+- `n`, `k`, `seed`: sample size, parameter count, and the seed used.
 
 **Tuning tips:**
 - `run_grid_search=True` gives more robust PSO starting guesses (slower).
@@ -172,20 +277,20 @@ simulate_retention_times(
 
 **Behavior:**
 - Repeats the provided scalars to build arrays for `m` identical compartments against the reciprocal of efficiency (R).
-- Uses Secant and Newton–Raphson methods to find THRT, solving the reactor product equation.
+- Uses Secant and Newton-Raphson methods to find THRT, solving the reactor product equation.
 - Returns DataFrame with `Date`, `R`, `m`, `Gf`, `Ka`, `Kb`, `Newton_T`, `Newton_T_min`, `Secant_T`, `Secant_T_min`.
 
 ---
 
 ## IO helpers
 
-- `load_features(path)` — loads CSV / Parquet / NumPy arrays into a DataFrame.
-- `build_beta(beta_df, tf_col="Tf", beta_col="Beta", time_multiplier=60)` — constructs `Tf_arr` and `Bo_B_obs` used for fitting.
-- `save_results(obj, out_path)` — saves DataFrame/dict to JSON / CSV / Parquet as appropriate.
+- `load_features(path)`: loads CSV, Parquet, or NumPy arrays into a DataFrame.
+- `build_beta(beta_df, tf_col="Tf", beta_col="Beta", time_multiplier=60)`: constructs the `Tf_arr` and `Bo_B_obs` arrays used for fitting.
+- `save_results(obj, out_path)`: saves a DataFrame or dict to JSON, CSV, or Parquet as appropriate.
 
 ---
 
-## CLI usage (example)
+## CLI usage (example with tabular image features)
 
 Run end-to-end feature → Beta → fit → simulate:
 (Activate the environment first before the following).
@@ -194,7 +299,7 @@ Run end-to-end feature → Beta → fit → simulate:
 python -m floclib.cli -i examples/testing.csv --Gf 18 --method delta --min-size 0.02 --max-size 2.375 --interval 0.10 --loss huber --pso-grid --pso-iters 100 --out run_results.json
 ```
 ---
-Optional (Multi-line — Linux / macOS; bash, zsh)
+Optional (Multi-line; Linux and macOS; bash, zsh)
 ```bash
 python -m floclib.cli \
   -i examples/testing.csv \
@@ -224,11 +329,38 @@ Outputs: JSON summary and companion Parquet files: `<out>_beta.parquet`, `<out>_
 
 ---
 
+## CLI usage: image pipeline (`floclib seg`)
+
+Run images → Beta → Ka/Kb → THRT end-to-end (requires `floclib[seg]`):
+
+```bash
+python -m floclib.cli seg --root FlocsData \
+  --pixels-to-um 0.01 \
+  --segment "median_blur[ksize=3]|threshold_otsu" \
+  --post "remove_small_objects[min_size=50]" \
+  --bins 0.02:2.375:0.1 \
+  --condition-pattern "Gf_(\d+)" \
+  --seed 42 --out run_seg.json
+```
+
+**Key `seg` options:**
+- `--root` : image root folder (`Condition/Tf/images`).
+- `--pixels-to-um` : pixel size in µm (or mm) for physical scaling.
+- `--segment` / `--preprocess` / `--post` : `|`-separated op specs, each `name[k=v,...]`.
+- `--bins` : `min:max:step` or comma-separated edges.
+- `--Gf` : scalar shear velocity (overrides condition Gf); or use `--condition-pattern` to parse it from folder names.
+- `--condition-pattern` : regex with one group parsed as Gf from each condition dir (e.g. `Gf_(\d+)`).
+- `--seed` : reproducible PSO; `--no-fit` to stop after Beta.
+
+Outputs: `<out>.json` summary, `<out>_particles.parquet`, `<out>_beta.parquet`, `<out>_cstr.parquet`.
+
+---
+
 ## Output artifacts
 
-- `<out>.json` — summary (fit metadata, Beta table, simulation results).
-- `<out>_beta.parquet` — Beta table with `Time` and `Bo_B`.
-- `<out>_cstr.parquet` — retention time results.
+- `<out>.json`: summary containing fit metadata, the Beta table, and simulation results.
+- `<out>_beta.parquet`: Beta table with `Time` and `Bo_B`.
+- `<out>_cstr.parquet`: retention time results.
 
 ---
 
@@ -237,7 +369,7 @@ Outputs: JSON summary and companion Parquet files: `<out>_beta.parquet`, `<out>_
 - **Units consistency:** ensure particle-size units and bin edges use the same unit (mm or µm). Unit changes and bin size/intervals alter fitted slopes.
 - **ASD method selection:** use `delta` to reproduce legacy behaviour; `density` is the standard alternative.
 - **PSO performance:** grid search improves robustness but increases runtime. Adjust `pso_iters` and swarm sizes for faster iteration during heavy simulation.
-- **Reproducibility:** PSO is stochastic. Add a seed option (if deterministic results are required) before large-scale production runs.
+- **Reproducibility:** PSO is stochastic. Pass `seed=` to `fit_ka_kb` / `Pipeline.fit(...)` for deterministic PSO initial positions (two runs with the same seed give identical `Ka_fit`/`Kb_fit`).
 - **Error handling:** input validation checks for required columns; ensure `Folder` is declared for the corresponding column for Tf accordingly.
 
 ---

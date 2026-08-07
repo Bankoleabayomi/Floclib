@@ -26,8 +26,20 @@ except PackageNotFoundError:
 
 
 # expose core functions at package-level if you like
-from .asd import compute_beta
+from .asd import compute_beta, aggregate_floc_stats
 from .fit import fit_ka_kb
 from .cstr import simulate_retention_times
+from .pipeline import Pipeline
+from .segment import register, Compose, get_op, list_ops
 
-__all__ = ["compute_beta", "fit_ka_kb", "simulate_retention_times"]
+__all__ = [
+    "compute_beta",
+    "aggregate_floc_stats",
+    "fit_ka_kb",
+    "simulate_retention_times",
+    "Pipeline",
+    "register",
+    "Compose",
+    "get_op",
+    "list_ops",
+]

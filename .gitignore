@@ -57,6 +57,7 @@ env.bak/
 .vscode/
 .idea/
 *.swp
+*.code-workspace
 
 # OS
 .DS_Store
@@ -66,6 +67,11 @@ Thumbs.db
 run_results*
 report.log
 *.log
+trial_out/
+
+# Not part of the official repo (reference / scratch scripts)
+Nw_Beta_Tuned.py
+beta_MultipleGf.py
 
 # Local dev leftovers (empty scratch files)
 1.1

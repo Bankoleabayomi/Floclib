@@ -135,6 +135,99 @@ def compute_beta(
     return out_df
 
 
+#---------Aggregate floc stats per (Condition, Tf)--------------
+
+def aggregate_floc_stats(
+    particles_df: pd.DataFrame,
+    group_cols: Sequence[str] = ("Condition", "Tf"),
+    size_col: str = "longest_length",
+    area_col: str = "area",
+    props: Sequence[str] = ("area", "equivalent_diameter_area", "longest_length",
+                            "perimeter", "aspect_ratio", "eccentricity"),
+    compute_df: bool = True,
+) -> pd.DataFrame:
+    """Per-group summary of floc properties for the image pipeline.
+
+    For each ``(Condition, Tf)`` group this returns a row with:
+      * the particle count (``n_particles``),
+      * the arithmetic mean of each property (``mean_<prop>``),
+      * the geometric mean of each property (``geomean_<prop>``),
+      * the 2D fractal dimension ``Df`` (slope of log area vs log size).
+
+    ``Df`` matches the relationship used in the reference script
+    ``beta_MultipleGf.py`` (``np.polyfit(log length, log area, 1)``).
+
+    Parameters
+    ----------
+    particles_df : DataFrame of per-particle measurements (as produced by
+        :func:`floclib.segment.measure_particles`).
+    group_cols : columns defining each timestep group.
+    size_col, area_col : columns used for the fractal-dimension fit.
+    props : columns to average.  Missing columns are skipped silently.
+    compute_df : set False to skip the (sometimes noisy) Df fit.
+
+    Returns
+    -------
+    pd.DataFrame with one row per group.
+    """
+    import numpy as np
+    from .segment.measures import fractal_dimension
+
+    df = particles_df.copy()
+    available_props = [p for p in props if p in df.columns]
+    if group_cols[0] not in df.columns or group_cols[1] not in df.columns:
+        raise ValueError(f"particles_df must contain group columns {group_cols}")
+
+    # natural/numeric key for Tf so output sorts chronologically (2 before 10)
+    df["_tf_key"] = df[group_cols[1]].map(_natural_key)
+    df = df.sort_values([group_cols[0], "_tf_key"])
+
+    rows = []
+    for key, g in df.groupby(list(group_cols), sort=False):
+        row: dict[str, Any] = {
+            group_cols[0]: key[0] if isinstance(key, tuple) else key,
+            group_cols[1]: key[1] if isinstance(key, tuple) else key,
+            "n_particles": len(g),
+        }
+        for p in available_props:
+            vals = g[p].dropna().astype(float)
+            vals = vals[vals > 0]
+            row[f"mean_{p}"] = float(vals.mean()) if not vals.empty else float("nan")
+            row[f"geomean_{p}"] = (
+                float(np.exp(np.mean(np.log(vals)))) if not vals.empty else float("nan")
+            )
+        if compute_df and area_col in g.columns and size_col in g.columns:
+            row["Df"] = fractal_dimension(g[area_col], g[size_col])
+        else:
+            row["Df"] = float("nan")
+        rows.append(row)
+
+    out = pd.DataFrame(rows)
+    if not out.empty:
+        out["_tf_key"] = out[group_cols[1]].map(_natural_key)
+        out = out.sort_values([group_cols[0], "_tf_key"]).drop(columns="_tf_key")
+    return out.reset_index(drop=True)
+
+
+def _natural_key(x: Any):
+    """Natural-sort key so '10' sorts after '2' (chronological Tf ordering).
+
+    Returns a *tuple* (hashable) so it works both as a ``key=`` for
+    ``sorted()`` and as a value mapped onto a pandas column for
+    ``sort_values`` (lists are unhashable and break pandas factorize).
+    """
+    import re
+    s = str(x)
+    parts = re.findall(r"\d+|\D+", s)
+    key = []
+    for p in parts:
+        if p.isdigit():
+            key.append((0, int(p), ""))
+        else:
+            key.append((1, 0, p.lower()))
+    return tuple(key)
+
+
 #---------Density only Method--------------
 # import numpy as np
 # import pandas as pd

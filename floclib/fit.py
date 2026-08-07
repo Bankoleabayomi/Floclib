@@ -47,6 +47,7 @@ def fit_ka_kb(
     verbose: bool = False,
     plot: bool = True,
     plot_title: Optional[str] = None,
+    seed: Optional[int] = None,    # set for reproducible PSO initial positions
 ) -> Dict[str, Any]:
     """
     Fit Ka and Kb using PSO (grid search across hyperparameters optionally) then curve_fit.
@@ -56,6 +57,11 @@ def fit_ka_kb(
     Returns a dict with Ka/Kb (PSO init and curve_fit refined), pso diagnostics,
     and Bo_B_fit array. By default it matches your original script:
       grid-search over (w,c1,c2,s) with Huber loss in PSO, then curve_fit refine.
+
+    ``seed`` (added for reproducibility) fixes the PSO initial particle
+    positions via ``np.random.default_rng(seed)`` so that two runs with the
+    same seed yield identical ``Ka_fit``/``Kb_fit``.  ``seed=None`` (default)
+    keeps the original stochastic behaviour.
     """
 
     Tf_arr = np.asarray(Tf)
@@ -91,6 +97,19 @@ def fit_ka_kb(
     best_opts = None
     best_cost_history = None
 
+    # Reproducibility: fix PSO initial particle positions when a seed is given.
+    # Uses a single stream so the whole (possibly grid-searched) run is
+    # deterministic.  seed=None preserves the original stochastic behaviour.
+    rng = np.random.default_rng(seed) if seed is not None else None
+    if seed is not None:
+        # belt-and-suspenders for any internal RNG pyswarms may use
+        np.random.seed(seed)
+
+    def _init_pos(n_particles: int):
+        if rng is None:
+            return None
+        return rng.uniform(lb_arr, ub_arr, size=(int(n_particles), 2))
+
     if run_grid_search:
         # iterate grid exactly as your script
         for w in param_grid['w']:
@@ -102,7 +121,8 @@ def fit_ka_kb(
                             n_particles=s,
                             dimensions=2,
                             options=options,
-                            bounds=bounds_for_ps
+                            bounds=bounds_for_ps,
+                            init_pos=_init_pos(s)
                         )
                         try:
                             cost, pos = optimizer.optimize(
@@ -137,7 +157,8 @@ def fit_ka_kb(
             n_particles=s_default,
             dimensions=2,
             options=options,
-            bounds=bounds_for_ps
+            bounds=bounds_for_ps,
+            init_pos=_init_pos(s_default)
         )
         try:
             best_score, p_best = optimizer.optimize(pso_objective, iters=pso_iters, verbose=False)
@@ -169,6 +190,30 @@ def fit_ka_kb(
     Bo_B_fit = _A_K(Tf_arr, Gf, Ka_fit, Kb_fit)
     T_m = Tf_arr/60
 
+    # ---- Additional statistical metrics (mirrors beta_MultipleGf.py) ----
+    residuals = Bo_B - Bo_B_fit
+    rmse = float(np.sqrt(np.mean(residuals ** 2)))
+    n = int(len(Bo_B))
+    k = 2  # parameters: Ka, Kb
+    mse = float(np.mean(residuals ** 2))
+    aic = float(n * np.log(mse) + 2 * k)
+    bic = float(n * np.log(mse) + k * np.log(n))
+    ka_kb_ratio = float(Ka_fit / Kb_fit) if Kb_fit != 0 else float("nan")
+
+    # standard errors + 95% CIs from curve_fit covariance
+    Ka_se = Kb_se = float("nan")
+    Ka_ci_low = Ka_ci_high = float("nan")
+    Kb_ci_low = Kb_ci_high = float("nan")
+    if pcov is not None:
+        try:
+            Ka_se = float(np.sqrt(pcov[0, 0]))
+            Kb_se = float(np.sqrt(pcov[1, 1]))
+            z = 1.96
+            Ka_ci_low, Ka_ci_high = Ka_fit - z * Ka_se, Ka_fit + z * Ka_se
+            Kb_ci_low, Kb_ci_high = Kb_fit - z * Kb_se, Kb_fit + z * Kb_se
+        except Exception:
+            pass
+
     # Plot (replicates your final plotting block)
     if plot:
         try:
@@ -192,10 +237,25 @@ def fit_ka_kb(
         "Kb_pso_init": Kb_init,
         "pso_best_score": float(best_score),
         "pso_best_opts": {"w": w_best, "c1": c1_best, "c2": c2_best, "swarm": s_best},
+        "seed": seed,
         "pso_cost_history_best_run": best_cost_history,
         "Ka_fit": Ka_fit,
         "Kb_fit": Kb_fit,
         "Bo_B_fit": Bo_B_fit,
-        "pcov": pcov
+        "pcov": pcov,
+        # statistical metrics (mirrors beta_MultipleGf.py)
+        "Ka/Kb": ka_kb_ratio,
+        "Ka_se": Ka_se,
+        "Kb_se": Kb_se,
+        "Ka_CI_low": Ka_ci_low,
+        "Ka_CI_high": Ka_ci_high,
+        "Kb_CI_low": Kb_ci_low,
+        "Kb_CI_high": Kb_ci_high,
+        "RMSE": rmse,
+        "MSE": mse,
+        "AIC": aic,
+        "BIC": bic,
+        "n": n,
+        "k": k,
     }
     return result
