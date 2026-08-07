@@ -140,6 +140,9 @@ class Pipeline:
         self.particles_df: Optional[pd.DataFrame] = None
         self.beta_df: Optional[pd.DataFrame] = None
         self._fit_result: Optional[dict] = None
+        # populated by fit_all() — one row per condition + full per-condition dicts
+        self.fit_results_df: Optional[pd.DataFrame] = None
+        self._all_fits: dict[str, dict] = {}
 
     # ------------------------------------------------------------------ #
     #  Construction helpers
@@ -444,20 +447,216 @@ class Pipeline:
         self._fit_result = res
         return res
 
+    # ------------------------------------------------------------------ #
+    #  fit_all() — per-condition fit table (one row per condition)
+    # ------------------------------------------------------------------ #
+    # columns reported in the per-condition fit table (flat view)
+    _FIT_TABLE_COLUMNS = [
+        "Condition", "Gf", "Ka", "Kb", "Ka/Kb", "RMSE", "AIC", "BIC",
+        "Ka_se", "Kb_se", "Ka_CI_low", "Ka_CI_high",
+        "Kb_CI_low", "Kb_CI_high", "n", "seed", "pso_best_score",
+        "Skipped", "Skip_Reason",
+    ]
+
+    def fit_all(
+        self,
+        *,
+        conditions: Optional[Sequence[str]] = None,
+        seed: Optional[int] = None,
+        time_multiplier: float = 60.0,
+        plot: bool = False,
+        **fit_kwargs: Any,
+    ) -> pd.DataFrame:
+        """Fit Ka/Kb for **every** condition, returning a per-condition fit table.
+
+        One row per condition with ``Condition, Gf, Ka, Kb, Ka/Kb, RMSE, AIC, BIC,
+        Ka_se, Kb_se, Ka_CI_low/high, Kb_CI_low/high, n, seed, pso_best_score,
+        Skipped, Skip_Reason``.  Conditions whose Beta series is non-positive,
+        whose Gf is NaN, or that have fewer than three Tf points are **skipped
+        gracefully** (a NaN row with ``Skipped=True`` and a ``Skip_Reason``)
+        rather than aborted.
+
+        The full per-condition fit dicts (with ``Ka_fit``/``Kb_fit`` and all
+        diagnostic keys) are kept in ``self._all_fits`` keyed by condition name;
+        the flat table is stored in ``self.fit_results_df`` and returned.
+
+        ``self._fit_result`` (the single-condition fit) is left untouched.
+        """
+        if self.beta_df is None:
+            raise RuntimeError("Call analyze() before fit_all().")
+        if self.beta_df.empty:
+            raise RuntimeError(
+                "beta_df is empty — no Beta values to fit (check segmentation/binning)."
+            )
+
+        available = list(self.beta_df["Condition"].unique())
+        if conditions is None:
+            cond_list = available
+        else:
+            cond_list = list(conditions)
+            for c in cond_list:
+                if c not in available:
+                    raise ValueError(
+                        f"Unknown condition {c!r}; available: {available}."
+                    )
+
+        used_seed = seed if seed is not None else self.seed
+        rows: list[dict] = []
+        self._all_fits = {}
+
+        for c in cond_list:
+            sub = self.beta_df[self.beta_df["Condition"] == c]
+            gf_val = float(sub["Gf"].iloc[0]) if "Gf" in sub.columns else float("nan")
+
+            if not np.isfinite(gf_val):
+                reason = ("Gf is NaN. Declare gf or condition_pattern when building "
+                          "the Pipeline, or pass Gf= per condition via fit().")
+                if self.verbose:
+                    print(f"[floclib] Skipping condition {c!r}: {reason}")
+                rows.append(self._skipped_row(c, float("nan"), reason))
+                continue
+
+            try:
+                Tf_arr, Bo_B_obs, _ = build_beta(
+                    sub, tf_col="Tf", beta_col="Beta",
+                    time_multiplier=time_multiplier,
+                )
+            except ValueError as e:
+                reason = str(e)
+                if self.verbose:
+                    print(f"[floclib] Skipping condition {c!r}: {reason}")
+                rows.append(self._skipped_row(c, gf_val, reason))
+                continue
+
+            if len(Tf_arr) < 3:
+                reason = (f"only {len(Tf_arr)} Tf points "
+                          f"(need >= 3 for curve_fit with 2 parameters).")
+                if self.verbose:
+                    print(f"[floclib] Skipping condition {c!r}: {reason}")
+                rows.append(self._skipped_row(c, gf_val, reason))
+                continue
+
+            res = fit_ka_kb(
+                Tf_arr, Bo_B_obs, gf_val,
+                plot=plot,
+                seed=used_seed,
+                **fit_kwargs,
+            )
+            res["Condition"] = c
+            res["Gf"] = gf_val
+            self._all_fits[c] = res
+            rows.append(self._fit_row(c, res))
+
+        self.fit_results_df = pd.DataFrame(rows, columns=self._FIT_TABLE_COLUMNS)
+        return self.fit_results_df
+
+    @staticmethod
+    def _skipped_row(condition: str, gf_val: float, reason: str) -> dict:
+        return {
+            "Condition": condition, "Gf": gf_val,
+            "Ka": np.nan, "Kb": np.nan, "Ka/Kb": np.nan,
+            "RMSE": np.nan, "AIC": np.nan, "BIC": np.nan,
+            "Ka_se": np.nan, "Kb_se": np.nan,
+            "Ka_CI_low": np.nan, "Ka_CI_high": np.nan,
+            "Kb_CI_low": np.nan, "Kb_CI_high": np.nan,
+            "n": np.nan, "seed": np.nan, "pso_best_score": np.nan,
+            "Skipped": True, "Skip_Reason": reason,
+        }
+
+    def _fit_row(self, condition: str, res: dict) -> dict:
+        return {
+            "Condition": condition, "Gf": res["Gf"],
+            "Ka": res["Ka_fit"], "Kb": res["Kb_fit"], "Ka/Kb": res["Ka/Kb"],
+            "RMSE": res["RMSE"], "AIC": res["AIC"], "BIC": res["BIC"],
+            "Ka_se": res["Ka_se"], "Kb_se": res["Kb_se"],
+            "Ka_CI_low": res["Ka_CI_low"], "Ka_CI_high": res["Ka_CI_high"],
+            "Kb_CI_low": res["Kb_CI_low"], "Kb_CI_high": res["Kb_CI_high"],
+            "n": res["n"], "seed": res["seed"],
+            "pso_best_score": res["pso_best_score"],
+            "Skipped": False, "Skip_Reason": "",
+        }
+
+    # ------------------------------------------------------------------ #
+    #  simulate() — single-condition (fit_result) OR varying-Gf (Gf=)
+    # ------------------------------------------------------------------ #
+    def _lookup_ka_kb_by_gf(
+        self, gf_design: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Look up per-compartment Ka/Kb from ``fit_results_df`` by Gf.
+
+        Conditions sharing the same Gf (replicates) are averaged.  Skipped rows
+        and rows with NaN Ka/Kb are excluded from the mean.  Raises a clear
+        ``ValueError`` when a requested Gf is absent from the fit table.
+        """
+        if self.fit_results_df is None:
+            raise RuntimeError(
+                "fit_results_df is None. Call fit_all() before simulate(Gf=...)."
+            )
+        df = self.fit_results_df
+        usable = df[df.get("Skipped", False) == False].dropna(subset=["Ka", "Kb"])
+        if usable.empty:
+            raise ValueError(
+                "No usable (non-skipped) fits in fit_results_df; cannot look up Ka/Kb."
+            )
+        available_gf = sorted(float(g) for g in usable["Gf"].unique())
+        ka_out, kb_out = [], []
+        for g in gf_design:
+            matches = usable[np.isclose(usable["Gf"], float(g), rtol=1e-6, atol=1e-6)]
+            if matches.empty:
+                raise ValueError(
+                    f"Gf={float(g)} not found in fit_results_df. "
+                    f"Available Gf values: {available_gf}. "
+                    f"Either run fit_all with conditions at Gf={float(g)}, "
+                    f"or check the Gf design array."
+                )
+            ka_out.append(float(matches["Ka"].mean()))
+            kb_out.append(float(matches["Kb"].mean()))
+        return np.array(ka_out), np.array(kb_out)
+
     def simulate(
         self,
         fit_result: Optional[dict] = None,
         *,
+        Gf: Optional[Union[float, Sequence[float]]] = None,
         R_values: Sequence[float] = (2, 3, 10),
-        m: int = 5,
+        m: Optional[int] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        """Simulate THRT from a fit result via :func:`simulate_retention_times`."""
+        """Simulate THRT via :func:`simulate_retention_times`.
+
+        Two paths, both backward compatible:
+
+        * **Single condition** — pass ``fit_result=`` (a dict from :meth:`fit`
+          or a per-condition dict from ``self._all_fits``).  The condition's
+          ``Gf``/``Ka_fit``/``Kb_fit`` are broadcast across ``m`` compartments
+          (``m`` defaults to 5).  This is the original path.
+
+        * **Varying-Gf design** — pass ``Gf=`` as a scalar or per-compartment
+          array.  Ka/Kb per compartment are looked up from :attr:`fit_results_df`
+          by Gf (averaging replicates at the same Gf), so :meth:`fit_all` must
+          have run first.  ``m`` is taken as ``len(Gf)`` for an array.
+
+        Passing neither raises a ``RuntimeError``; passing both favours ``Gf``.
+        """
+        if Gf is not None:
+            if fit_result is not None and self.verbose:
+                print("[floclib] simulate(): Gf= takes precedence; fit_result ignored.")
+            gf_arr = np.atleast_1d(np.asarray(Gf, dtype=float))
+            ka_arr, kb_arr = self._lookup_ka_kb_by_gf(gf_arr)
+            return simulate_retention_times(
+                gf_arr, ka_arr, kb_arr,
+                R_values=R_values, m=(len(gf_arr) if m is None else m),
+                **kwargs,
+            )
+
         fr = fit_result if fit_result is not None else self._fit_result
         if fr is None:
-            raise RuntimeError("Call fit() before simulate() (or pass fit_result=...).")
+            raise RuntimeError(
+                "Call fit_all() (and pass Gf=) or pass fit_result= to simulate()."
+            )
         return simulate_retention_times(
-            fr.get("Gf"), fr["Ka_fit"], fr["Kb_fit"], R_values=R_values, m=m, **kwargs
+            fr.get("Gf"), fr["Ka_fit"], fr["Kb_fit"],
+            R_values=R_values, m=(5 if m is None else m), **kwargs,
         )
 
     # ------------------------------------------------------------------ #

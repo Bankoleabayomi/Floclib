@@ -90,6 +90,9 @@ def main_seg(argv=None):
     parser.add_argument("--bins", default=None,
                         help="Bins as 'min:max:step' or comma-separated edges")
     parser.add_argument("--Gf", type=float, default=None, help="Shear velocity (scalar; overrides condition Gf)")
+    parser.add_argument("--Gf-design", default=None,
+                        help="Comma-separated per-compartment Gf design (e.g. '18,18,50'). "
+                             "Triggers fit_all + varying-Gf THRT; overrides --Gf for simulate.")
     parser.add_argument("--condition-pattern", default=None,
                         help="Regex with one group to parse Gf from condition dir names, e.g. 'Gf_(\\d+)'")
     parser.add_argument("--image-ext", default=None, help="Comma-separated image extensions (default many)")
@@ -137,17 +140,19 @@ def main_seg(argv=None):
 
     if not args.no_fit and not beta_df.empty:
         R_values = [float(r) for r in args.R.split(",")]
-        fit = pipe.fit(Gf=args.Gf, seed=args.seed, pso_iters=args.pso_iters,
-                       loss_for_pso=args.loss, run_grid_search=False, plot=False)
-        sim_df = pipe.simulate(fit, R_values=R_values, m=args.m)
+        pipe.fit_all(seed=args.seed, pso_iters=args.pso_iters,
+                     loss_for_pso=args.loss, run_grid_search=False, plot=False)
+        save_results(pipe.fit_results_df, base + "_fits.parquet")
+
+        if args.Gf_design:
+            gf_design = [float(x) for x in args.Gf_design.split(",")]
+            sim_df = pipe.simulate(Gf=gf_design, R_values=R_values)
+        else:
+            # single-shear fallback: broadcast the first condition's fit
+            first_fit = pipe._all_fits[next(iter(pipe._all_fits))]
+            sim_df = pipe.simulate(first_fit, R_values=R_values, m=args.m)
         save_results(sim_df, base + "_cstr.parquet")
-        summary["fit"] = {
-            "Condition": fit.get("Condition"),
-            "Gf": fit.get("Gf"),
-            "Ka_fit": fit.get("Ka_fit"),
-            "Kb_fit": fit.get("Kb_fit"),
-            "seed": fit.get("seed"),
-        }
+        summary["fits"] = pipe.fit_results_df.to_dict(orient="records")
         summary["cstr"] = sim_df.to_dict(orient="records")
 
     save_results(summary, args.out)

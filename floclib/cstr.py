@@ -8,7 +8,7 @@ Created on Wed Aug 13 13:14:02 2025
 # floclib/cstr.py
 import numpy as np
 import pandas as pd
-from typing import Sequence, Tuple, Optional
+from typing import Sequence, Tuple, Union, Optional
 import math
 import csv
 from datetime import datetime
@@ -60,37 +60,104 @@ def newton_raphson(T0: float, R_specified: float, Gf: np.ndarray, Ka: np.ndarray
         T = T - f_val / f_prime
     return None
 
+def _is_scalar(x) -> bool:
+    """True for a plain number (int/float/numpy scalar), False for sequences/arrays."""
+    if isinstance(x, (list, tuple, np.ndarray)):
+        return False
+    return np.isscalar(x) or isinstance(x, (int, float, np.number))
+
+
+def _broadcast_param(value, m: int, name: str):
+    """Coerce a scalar or sequence to a length-m float numpy array.
+
+    Scalars broadcast to ``m`` identical compartments; sequences must already be
+    length ``m`` or a ``ValueError`` is raised.
+    """
+    if _is_scalar(value):
+        return np.full(m, float(value))
+    arr = np.asarray(value, dtype=float)
+    if arr.ndim == 0:  # 0-d array from np.asarray(scalar) edge case
+        return np.full(m, float(arr))
+    if len(arr) != m:
+        raise ValueError(
+            f"{name} has length {len(arr)} but Gf has {m} compartments."
+        )
+    return arr
+
+
 def simulate_retention_times(
-    Gf_val: float,
-    Ka_fitted: float,
-    Kb_fitted: float,
-    R_values: Sequence[float] = (2,3,10),
-    m: int = 5,
+    Gf: Union[float, Sequence[float]],
+    Ka: Union[float, Sequence[float]],
+    Kb: Union[float, Sequence[float]],
+    R_values: Sequence[float] = (2, 3, 10),
+    m: Optional[int] = None,
     T0: float = 50.0,
-    T1: float = 100.0
+    T1: float = 100.0,
 ) -> pd.DataFrame:
     """
-    Simulate retention time T for each specified R using both Newton and Secant methods.
-    Returns a DataFrame with columns ['R','m','Gf','Ka','Kb','Newton_T','Newton_T_min','Secant_T','Secant_T_min'].
+    Simulate the Total Hydraulic Retention Time (THRT) T for each specified
+    treatment-efficiency ratio R, using both Newton-Raphson and Secant methods
+    over the m-compartment Chambers-in-Series (CSTR) reactor model.
+
+    Parameters
+    ----------
+    Gf, Ka, Kb : scalar or per-compartment sequence
+        Shear velocity and the fitted aggregation/breakage coefficients. When
+        scalars are passed they are broadcast across all ``m`` compartments
+        (single-shear design). When sequences/arrays are passed they declare a
+        *varying-Gf* design, one value per compartment, and ``m`` is taken as
+        ``len(Gf)``.
+    m : int, optional
+        Number of CSTR compartments. For a scalar ``Gf`` it defaults to 5. For an
+        array ``Gf`` it must be ``None`` or equal to ``len(Gf)``. Note that a
+        one-element array ``Gf=[18]`` yields ``m=1``, which is distinct from the
+        scalar ``Gf=18`` that yields ``m=5``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``Date, R, m, Gf, Ka, Kb, Newton_T, Newton_T_min, Secant_T,
+        Secant_T_min``. For a varying-Gf design the ``Gf``/``Ka``/``Kb`` cells
+        hold the per-compartment numpy array; for the scalar case they hold the
+        scalar value.
     """
-    Gf = np.array([Gf_val] * m)
-    Ka = np.array([Ka_fitted] * m)
-    Kb = np.array([Kb_fitted] * m)
+    # Resolve the compartment count and per-compartment arrays.
+    if _is_scalar(Gf):
+        if m is None:
+            m = 5
+        m = int(m)
+        Gf_arr = np.full(m, float(Gf))
+        Ka_arr = _broadcast_param(Ka, m, "Ka")
+        Kb_arr = _broadcast_param(Kb, m, "Kb")
+        gf_cell, ka_cell, kb_cell = float(Gf), float(Ka_arr[0]), float(Kb_arr[0])
+    else:
+        Gf_arr = np.asarray(Gf, dtype=float)
+        if Gf_arr.ndim == 0:
+            raise ValueError("Gf array must have at least one element.")
+        if m is not None and int(m) != len(Gf_arr):
+            raise ValueError(
+                f"m={m} does not match len(Gf)={len(Gf_arr)}; "
+                f"pass m=None or omit it when Gf is an array."
+            )
+        m = len(Gf_arr)
+        Ka_arr = _broadcast_param(Ka, m, "Ka")
+        Kb_arr = _broadcast_param(Kb, m, "Kb")
+        gf_cell, ka_cell, kb_cell = Gf_arr, Ka_arr, Kb_arr
 
     rows = []
     for R_specified in R_values:
-        T_newton = newton_raphson(T0, R_specified, Gf, Ka, Kb, m)
-        T_secant = secant_method(T0, T1, R_specified, Gf, Ka, Ka*0+Kb, m)  # Kb array is Kb
+        T_newton = newton_raphson(T0, R_specified, Gf_arr, Ka_arr, Kb_arr, m)
+        T_secant = secant_method(T0, T1, R_specified, Gf_arr, Ka_arr, Kb_arr, m)
         rows.append({
             "Date": datetime.now().isoformat(),
             "R": R_specified,
             "m": m,
-            "Gf": Gf_val,
-            "Ka": Ka_fitted,
-            "Kb": Kb_fitted,
+            "Gf": gf_cell,
+            "Ka": ka_cell,
+            "Kb": kb_cell,
             "Newton_T": T_newton,
-            "Newton_T_min": (T_newton/60.0) if T_newton else None,
+            "Newton_T_min": (T_newton / 60.0) if T_newton else None,
             "Secant_T": T_secant,
-            "Secant_T_min": (T_secant/60.0) if T_secant else None
+            "Secant_T_min": (T_secant / 60.0) if T_secant else None,
         })
     return pd.DataFrame(rows)

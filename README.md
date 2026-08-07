@@ -1,6 +1,15 @@
 
 # Floclib
 
+[![PyPI version](https://img.shields.io/pypi/v/floclib.svg)](https://pypi.org/project/floclib/)
+[![Python versions](https://img.shields.io/pypi/pyversions/floclib.svg)](https://pypi.org/project/floclib/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/floclib.svg)](https://pypi.org/project/floclib/#files)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.jwpe.2025.107871-blue.svg)](https://doi.org/10.1016/j.jwpe.2025.107871)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Bankoleabayomi/Floclib/tests.yml?branch=main&label=tests)](https://github.com/Bankoleabayomi/Floclib/actions/workflows/tests.yml)
+[![GitHub issues](https://img.shields.io/github/issues/Bankoleabayomi/Floclib.svg)](https://github.com/Bankoleabayomi/Floclib/issues)
+[![GitHub stars](https://img.shields.io/github/stars/Bankoleabayomi/Floclib.svg)](https://github.com/Bankoleabayomi/Floclib)
+
 Floclib is a Python toolkit for analyzing flocculation kinetics from image and feature data. It derives the Power Law Slope (Beta) from the Aggregate Size Distribution (ASD), fits the aggregation and breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) combined with non-linear least squares (NLS), and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiencies across Completely Stirred Tank Reactors (CSTR) in series, also known as the Chambers-in-Series model.
 
 Floclib supports two complementary workflows:
@@ -101,6 +110,64 @@ pipe = Pipeline.from_images(..., segment=lambda img: my_label_fn(img))  # callab
 ```
 
 > Image operations lazy-import `cv2`, `scikit-image`, and `scipy.ndimage` inside their `__call__` methods. As a result, `import floclib.segment` succeeds even when the `[seg]` extra is not installed, and the operation only raises a clear `ImportError` (with an install hint) at the moment it is actually invoked.
+
+---
+
+## Per-condition fitting and varying-Gf THRT (0.3.0)
+
+A single Ka/Kb pair applied to every condition is physically wrong when conditions differ in shear (Gf). Floclib 0.3.0 fixes this with two additions that sit on top of the image and tabular pipelines without changing the existing API.
+
+### `fit_all` returns one fit per condition
+
+`Pipeline.fit_all(...)` loops every condition in `beta_df` and fits Ka/Kb independently, returning a tidy DataFrame with one row per condition. Each row carries the full fit-quality block:
+
+```python
+fits = pipe.fit_all(seed=42)        # one row per condition
+# columns: Condition, Gf, Ka, Kb, Ka/Kb, RMSE, AIC, BIC,
+#          Ka_se, Kb_se, Ka_CI_low, Ka_CI_high, Kb_CI_low, Kb_CI_high,
+#          n, seed, pso_best_score, Skipped, Skip_Reason
+```
+
+Conditions that cannot be fit are not dropped: they appear as NaN rows with `Skipped=True` and a human-readable `Skip_Reason` (NaN Gf, non-positive Beta, or fewer than three Tf points), so the table always lines up with the conditions you ran.
+
+### Varying-Gf THRT from the fit table
+
+Real CSTR designs vary the shear per compartment (for example `Gf=[18, 18, 50]`). Pass the per-compartment Gf design to `Pipeline.simulate` and floclib looks up the Ka/Kb fitted at each compartment's Gf from the `fit_all` table, averaging replicates that share a Gf. The compartment count `m` is `len(Gf)`:
+
+```python
+pipe.fit_all(seed=42)
+thrt = pipe.simulate(Gf=[18, 18, 50], R_values=[2, 3, 10])   # m = 3, per-compartment Ka/Kb
+```
+
+- `Gf=18` (a scalar) declares a one-compartment design (`m=1`). For the original "one shear broadcast across five tanks" behaviour, pass a `fit_result` instead (see below).
+- Replicate averaging: if three conditions were all run at Gf=18, their Ka/Kb are mean-averaged before THRT, while the fit table still reports each replicate separately.
+- A Gf that is not in the fit table raises a clear `ValueError` listing the available Gf values, so a typo cannot silently produce a wrong retention time.
+
+The low-level numeric solver `simulate_retention_times` now accepts either scalars (broadcast across `m` compartments, the original single-shear path) or per-compartment arrays (`m = len(Gf)`). This is the layer `Pipeline.simulate` builds on, and it is available directly for users who manage their own Ka/Kb arrays:
+
+```python
+from floclib.cstr import simulate_retention_times
+simulate_retention_times(Gf=[18, 30, 40], Ka=[ka18, ka30, ka40],
+                         Kb=[kb18, kb30, kb40], R_values=[2, 3, 10])  # m = 3
+```
+
+### Backward compatibility
+
+The single-condition path is unchanged. `pipe.fit(condition="Gf_30", seed=42)` still returns one fit dict, and `pipe.simulate(fit_result, R_values=[2, 3, 10], m=5)` still broadcasts that condition's Gf/Ka/Kb across `m` identical compartments. Existing scripts and the three-line example above continue to work without changes.
+
+### CLI
+
+`floclib seg` now runs `fit_all` and writes a per-condition fit table alongside the other artifacts:
+
+```bash
+python -m floclib.cli seg --root FlocsData \
+  --pixels-to-um 0.01 --segment "median_blur[ksize=3]|threshold_otsu" \
+  --post "remove_small_objects[min_size=50]" --bins 0.02:2.375:0.1 \
+  --condition-pattern "Gf_(\d+)" --Gf-design 18,18,50 --seed 42 --out run_seg.json
+```
+
+- `--Gf-design` : comma-separated per-compartment Gf design (for example `18,18,50`). Triggers varying-Gf THRT from the fit table. When omitted, the CLI falls back to broadcasting the first condition's fit across `--m` compartments.
+- New artifact: `<out>_fits.parquet`, the per-condition fit table.
 
 ---
 
@@ -260,25 +327,27 @@ fit_ka_kb(
 
 ### `simulate_retention_times(...)`
 
-Simulate retention times T for specified R values.
+Simulate retention times T for specified R values over the m-compartment CSTR model.
 
 **Signature:**
 ```py
 simulate_retention_times(
-    Gf_val: float,
-    Ka_fitted: float,
-    Kb_fitted: float,
-    R_values: Sequence[float] = (2,3,10),
-    m: int = 5,
+    Gf: float | Sequence[float],
+    Ka: float | Sequence[float],
+    Kb: float | Sequence[float],
+    R_values: Sequence[float] = (2, 3, 10),
+    m: Optional[int] = None,
     T0: float = 50.0,
     T1: float = 100.0
 ) -> pd.DataFrame
 ```
 
 **Behavior:**
-- Repeats the provided scalars to build arrays for `m` identical compartments against the reciprocal of efficiency (R).
-- Uses Secant and Newton-Raphson methods to find THRT, solving the reactor product equation.
-- Returns DataFrame with `Date`, `R`, `m`, `Gf`, `Ka`, `Kb`, `Newton_T`, `Newton_T_min`, `Secant_T`, `Secant_T_min`.
+- `Gf`, `Ka`, `Kb` accept either scalars or per-compartment sequences.
+  - Scalars are broadcast across all `m` compartments (the single-shear design). `m` defaults to `5` when `None`, preserving the original behaviour: `simulate_retention_times(18, ka, kb)` yields `m=5`.
+  - Sequences declare a varying-Gf design, one value per compartment, and `m` is taken as `len(Gf)`. Passing `m` together with an array `Gf` is an error unless `m == len(Gf)`. Note that a one-element array `Gf=[18]` yields `m=1`, which is distinct from the scalar `Gf=18` that yields `m=5`.
+- Uses Secant and Newton-Raphson methods to find THRT, solving the reactor product equation per compartment.
+- Returns DataFrame with `Date`, `R`, `m`, `Gf`, `Ka`, `Kb`, `Newton_T`, `Newton_T_min`, `Secant_T`, `Secant_T_min`. For a varying-Gf design the `Gf`/`Ka`/`Kb` cells hold the per-compartment array; for the scalar case they hold the scalar value.
 
 ---
 
@@ -349,10 +418,11 @@ python -m floclib.cli seg --root FlocsData \
 - `--segment` / `--preprocess` / `--post` : `|`-separated op specs, each `name[k=v,...]`.
 - `--bins` : `min:max:step` or comma-separated edges.
 - `--Gf` : scalar shear velocity (overrides condition Gf); or use `--condition-pattern` to parse it from folder names.
+- `--Gf-design` : comma-separated per-compartment Gf design (e.g. `18,18,50`). Triggers per-condition `fit_all` plus varying-Gf THRT; overrides `--Gf` for the simulate stage. Omit it to broadcast the first condition's fit across `--m` compartments (the original single-shear behaviour).
 - `--condition-pattern` : regex with one group parsed as Gf from each condition dir (e.g. `Gf_(\d+)`).
 - `--seed` : reproducible PSO; `--no-fit` to stop after Beta.
 
-Outputs: `<out>.json` summary, `<out>_particles.parquet`, `<out>_beta.parquet`, `<out>_cstr.parquet`.
+Outputs: `<out>.json` summary, `<out>_particles.parquet`, `<out>_beta.parquet`, `<out>_fits.parquet` (per-condition Ka/Kb fit table), `<out>_cstr.parquet`.
 
 ---
 
