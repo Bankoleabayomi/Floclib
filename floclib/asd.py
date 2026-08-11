@@ -29,7 +29,7 @@ def compute_beta(
 ) -> pd.DataFrame:
     """
     Compute Beta per folder from features using either:
-      - method="delta": dN = previous_bin_count - current_bin_count (your original method)
+      - method="delta": dN = previous_bin_count - current_bin_count (original method)
       - method="density": number_density = counts / dp (standard)
     Parameters:
       features: DataFrame with size and folder columns.
@@ -77,8 +77,18 @@ def compute_beta(
                 print(f"[compute_beta] folder={folder}: no valid sizes, skipping.")
             continue
 
-        # counts per bin (same ordering as bins)
-        counts, _ = np.histogram(sizes, bins=bins)
+        # Counts per bin, matching the reference (beta_MultipleGf.py): pd.cut with
+        # include_lowest, then groupby(observed=False).size() so every bin
+        # (including empty ones) appears in ascending bin order. This is
+        # boundary-identical to the reference -- its intervals are (left, right]
+        # with the first bin closed on the left, which np.histogram's
+        # [left, right) convention is NOT (a value on an interior edge lands in
+        # opposite bins). Using pd.cut makes the include_lowest parameter
+        # functional and guarantees Beta parity with the single-file reference.
+        binned = pd.cut(sizes, bins=bins.tolist(), labels=bin_labels.tolist(),
+                        include_lowest=include_lowest)
+        counts = (binned.groupby(binned, observed=False).size()
+                  .reindex(bin_labels.tolist(), fill_value=0).to_numpy(dtype=float))
 
         if method == "delta":
             # previous - current as in your original code:

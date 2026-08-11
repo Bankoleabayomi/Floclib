@@ -18,7 +18,7 @@ Floclib is a Python toolkit for analyzing flocculation kinetics from image and f
 
 Floclib supports two complementary workflows:
 
-- **Image pipeline (new in 0.2.0):** raw floc images are segmented, measured, reduced to Beta, fit for Ka and Kb, and simulated through to THRT in roughly three lines of code. This workflow requires the optional `[seg]` extra (scikit-image, OpenCV, imageio).
+- **Image pipeline (new in 0.3.1):** raw floc images are segmented, measured, reduced to Beta, fit for Ka and Kb, and simulated through to THRT in roughly three lines of code. This workflow requires the optional `[seg]` extra (scikit-image, OpenCV, imageio).
 - **Tabular pipeline (original):** pre-computed feature tables in CSV, Parquet, or NumPy format are consumed directly and carried through the same Beta, fit, and simulate stages. This workflow needs only the lightweight core dependencies.
 
 ---
@@ -30,6 +30,7 @@ Floclib supports two complementary workflows:
 - **Two ASD methods:** the legacy `delta` method (dN equals previous bin count minus current bin count) and the standard `density` method (counts divided by bin width).
 - **Robust and reproducible fitting:** Particle Swarm Optimization performs a global search over a configurable hyperparameter grid with an optional Huber loss, followed by Levenberg-Marquardt refinement through `scipy.curve_fit`. A `seed` parameter fixes the PSO initial particle positions so that repeated runs are reproducible. Fit quality is reported through RMSE, AIC, BIC, the Ka/Kb ratio, standard errors, and 95 percent confidence intervals.
 - **Retention time solvers:** Secant and Newton-Raphson methods simulate THRT for a multi-compartment CSTR system.
+- **Per-condition fitting and varying-Gf THRT (0.3.0):** `fit_all` fits Ka/Kb for every condition independently, and `simulate(Gf=[18, 18, 50], ...)` runs a different velocity gradient per CSTR compartment, looking up the Ka/Kb fitted at each compartment's Gf from the `fit_all` table.
 - **CLI and Python API:** both a command-line interface and an interactive Python API are provided for scriptable and exploratory use.
 
 ---
@@ -61,9 +62,9 @@ pipe = Pipeline.from_images("FlocsData", pixels_to_um=0.27,
         segment=Compose([MedianBlur(ksize=3), ThresholdOtsu(), RemoveSmallObjects(min_size=50)]),
         bins=(0.02, 2.375, 0.1), size_col="longest_length",
         condition_pattern=r"Gf_(\d+)")   # parse Gf from each condition folder name
-particles_df, beta_df = pipe.analyze()         # two DataFrames
-fit = pipe.fit(condition="Gf_30", seed=42)     # Ka/Kb + RMSE/AIC/BIC/CIs
-thrt = pipe.simulate(R_values=[2, 3, 10], m=5) # THRT
+particles_df, beta_df = pipe.analyze()                       # two DataFrames
+fits = pipe.fit_all(seed=42)                                 # one Ka/Kb per condition
+thrt = pipe.simulate(Gf=[18, 18, 50], R_values=[2, 3, 10])   # varying-Gf THRT, m = 3
 ```
 
 - **`particles_df`:** one row per detected floc, with every linear measurement physically scaled by `pixels_to_um` and areas scaled by its square. Columns: `Gf, Condition, Tf, Image, Particle_num, area, equivalent_diameter_area, longest_length, axis_minor_length, perimeter, aspect_ratio, eccentricity`.
@@ -119,7 +120,7 @@ pipe = Pipeline.from_images(..., segment=lambda img: my_label_fn(img))  # callab
 
 ## Per-condition fitting and varying-Gf THRT (0.3.0)
 
-A single Ka/Kb pair applied to every condition is physically wrong when conditions differ in shear (Gf). Floclib 0.3.0 fixes this with two additions that sit on top of the image and tabular pipelines without changing the existing API.
+**Why this matters.** A CSTR train can run a different velocity gradient in each compartment, and the aggregation and breakage kinetics (Ka, Kb) depend on that local shear. Each compartment must therefore use the Ka/Kb fitted at that compartment's Gf, not one pair broadcast across every tank. Applying a single Ka/Kb to every condition is physically wrong when conditions differ in shear (Gf). Floclib 0.3.0 fixes this with two additions that sit on top of the image and tabular pipelines without changing the existing API.
 
 ### `fit_all` returns one fit per condition
 

@@ -101,6 +101,18 @@ def measure_particles(
         if perimeter is not None:
             df["perimeter"] = perimeter * px
 
+        # Drop degenerate (zero-perimeter) regions, matching the reference
+        # script beta_MultipleGf.py which keeps only floc_props with
+        # ``perimeter * pixels_to_um > 0``. These are sub-resolution specks
+        # (typically single pixels) whose boundary has no measurable length,
+        # so ``equivalent_diameter_area`` is noise. Including them piles mass
+        # into the smallest size bin and distorts the Beta power-law slope,
+        # which in turn shifts the fitted Ka/Kb. On real floc images these
+        # can be the majority of labelled regions, so this filter is
+        # essential for parity with the reference, not cosmetic.
+        if "perimeter" in df.columns:
+            df = df[df["perimeter"] > 0].reset_index(drop=True)
+
     # reshape canonical columns
     if not df.empty:
         df = df.rename(columns={

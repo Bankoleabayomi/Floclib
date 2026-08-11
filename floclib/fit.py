@@ -37,8 +37,8 @@ def fit_ka_kb(
     Bo_B_obs: np.ndarray,
     Gf: float,
     *,
-    lb: Tuple[float,float] = (1e-13, 1e-13),
-    ub: Tuple[float,float] = (1e-3,  1e-3),
+    lb: Tuple[float,float] = (1e-7, 1e-7),
+    ub: Tuple[float,float] = (1e-3, 1e-3),
     param_grid: Optional[dict] = None,
     pso_iters: int = 100,
     loss_for_pso: str = "huber",   # default to match your original script
