@@ -1,0 +1,109 @@
+{
+  "version_target": "0.3.1",
+  "root": "D:\\Documents\\Python\\Image_database_24\\FeCl_Kaolin",
+  "n_conditions": 4,
+  "n_particles": 49391,
+  "n_beta_rows": 20,
+  "n_fits": 4,
+  "n_usable_fits": 4,
+  "available_gf": [
+    20.0,
+    40.0,
+    60.0,
+    80.0
+  ],
+  "gf_design": [
+    20.0,
+    20.0,
+    20.0,
+    20.0
+  ],
+  "r_values": [
+    2,
+    3,
+    10
+  ],
+  "analyze_s": 115.7,
+  "fit_all_s": 149.3,
+  "simulate_s": 0.0,
+  "fit_single_s": 37.6,
+  "total_s": 302.7,
+  "all_checks_passed": true,
+  "checks": [
+    {
+      "name": "analyze produced particles",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "analyze produced beta rows",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Gf parsed for every condition",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fit_all returned a table",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "at least one condition fitted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "varying-Gf simulate returned one row per R",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "compartment count m == len(Gf_design)",
+      "passed": true,
+      "detail": "m values: [4, 4, 4]"
+    },
+    {
+      "name": "R=2 reactor product == R",
+      "passed": true,
+      "detail": "product=2.000000 R=2 T=5175.606"
+    },
+    {
+      "name": "R=3 reactor product == R",
+      "passed": true,
+      "detail": "product=3.000000 R=3 T=9338.480"
+    },
+    {
+      "name": "R=10 reactor product == R",
+      "passed": true,
+      "detail": "product=10.000000 R=10 T=35619.672"
+    },
+    {
+      "name": "Pipeline.simulate matches low-level simulate_retention_times",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "single-condition fit finite",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "backward-compat simulate m==5",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "backward-compat Newton converged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "backward-compat matches scalar low-level broadcast",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

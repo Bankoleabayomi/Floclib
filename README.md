@@ -5,7 +5,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/floclib.svg)](https://pypi.org/project/floclib/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/floclib.svg)](https://pypi.org/project/floclib/#files)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.jwpe.2025.107871-blue.svg)](https://doi.org/10.1016/j.jwpe.2025.107871)
+[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.jwpe.2026.110892-blue.svg)](https://doi.org/10.1016/j.jwpe.2026.110892)
 [![Tests](https://img.shields.io/github/actions/workflow/status/Bankoleabayomi/Floclib/tests.yml?branch=main&label=tests)](https://github.com/Bankoleabayomi/Floclib/actions/workflows/tests.yml)
 [![GitHub issues](https://img.shields.io/github/issues/Bankoleabayomi/Floclib.svg)](https://github.com/Bankoleabayomi/Floclib/issues)
 [![GitHub stars](https://img.shields.io/github/stars/Bankoleabayomi/Floclib.svg)](https://github.com/Bankoleabayomi/Floclib)
@@ -13,6 +13,7 @@
 [![pip](https://img.shields.io/badge/pip-supported-3775A9?logo=pypi&logoColor=white)](https://pip.pypa.io/)
 [![conda](https://img.shields.io/badge/conda-supported-44A833?logo=anaconda&logoColor=white)](https://docs.conda.io/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://docs.astral.sh/ruff/)
+[![DOI](https://zenodo.org/badge/1037703476.svg)](https://doi.org/10.5281/zenodo.22759941)
 
 Floclib is a Python toolkit for analyzing flocculation kinetics from image and feature data. It derives the Power Law Slope (Beta) from the Aggregate Size Distribution (ASD), fits the aggregation and breakage coefficients (Ka, Kb) using Swarm Intelligence (SI) combined with non-linear least squares (NLS), and simulates the Total Hydraulic Retention Time (THRT) for an array of treatment efficiencies across Completely Stirred Tank Reactors (CSTR) in series, also known as the Chambers-in-Series model.
 
@@ -458,6 +459,22 @@ Copyright (c) 2025 Bankoleabayomi.
 ---
 ## Citation
 ```bash
+@article{bankole_automatic_2026,
+	title = {Automatic image-based flocculation modelling and sustainable water treatment process optimisation using {FlocLib}},
+	volume = {93},
+	issn = {2214-7144},
+	url = {https://www.sciencedirect.com/science/article/pii/S2214714426014509},
+	doi = {10.1016/j.jwpe.2026.110892},
+	urldate = {2026-09-13},
+	journal = {Journal of Water Process Engineering},
+	author = {Bankole, Abayomi O. and Moruzzi, Rodrigo and Negri, Rogério G. and Sharifi, Soroosh},
+	month = nov,
+	year = {2026},
+	keywords = {Automatic modelling, Completely stirred tank reactor, Flocculation kinetics, Swarm intelligence},
+	pages = {110892},
+	file = {ScienceDirect Full Text PDF:C\:\\Users\\banko\\Zotero\\storage\\64PSLP9R\\Bankole et al. - 2026 - Automatic image-based flocculation modelling and sustainable water treatment process optimisation us.pdf:application/pdf;ScienceDirect Snapshot:C\:\\Users\\banko\\Zotero\\storage\\59GA6IIR\\S2214714426014509.html:text/html},
+}
+
 @article{bankole_novel_2025,
 	title = {A novel open-source framework for automatic flocculation kinetics and retention time modelling using image analysis and swarm intelligence},
 	volume = {74},
